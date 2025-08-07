@@ -1,11 +1,6 @@
 pipeline {
     agent any
 
-    tools {
-        jdk 'JDK_HOME'
-        maven 'MAVEN_HOME'
-    }
-
     environment {
         BACKEND_DIR = 'crud_backend/crud_backend-main'
         FRONTEND_DIR = 'crud_frontend/crud_frontend-main'
@@ -27,11 +22,11 @@ pipeline {
 
         stage('Build Frontend (Vite)') {
             steps {
+                script {
+                    def nodeHome = tool name: 'NODE_HOME', type: 'jenkins.plugins.nodejs.tools.NodeJSInstallation'
+                    env.PATH = "${nodeHome}/bin:${env.PATH}"
+                }
                 dir("${env.FRONTEND_DIR}") {
-                    script {
-                        def nodeHome = tool name: 'NODE_HOME', type: 'jenkins.plugins.nodejs.tools.NodeJSInstallation'
-                        env.PATH = "${nodeHome}/bin:${env.PATH}"
-                    }
                     sh 'npm install'
                     sh 'npm run build'
                 }
@@ -41,17 +36,24 @@ pipeline {
         stage('Package Frontend as WAR') {
             steps {
                 dir("${env.FRONTEND_DIR}") {
-                    sh """
+                    sh '''
                         mkdir -p frontapp1_war/WEB-INF
                         cp -r dist/* frontapp1_war/
                         jar -cvf ../../${FRONTEND_WAR} -C frontapp1_war .
-                    """
+                    '''
                 }
             }
         }
 
         stage('Build Backend (Spring Boot WAR)') {
             steps {
+                script {
+                    def jdkHome = tool name: 'JDK_HOME', type: 'hudson.model.JDK'
+                    def mvnHome = tool name: 'MAVEN_HOME', type: 'hudson.tasks.Maven$MavenInstallation'
+                    env.JAVA_HOME = jdkHome
+                    env.MAVEN_HOME = mvnHome
+                    env.PATH = "${jdkHome}/bin:${mvnHome}/bin:${env.PATH}"
+                }
                 dir("${env.BACKEND_DIR}") {
                     sh 'mvn clean package'
                     sh "cp target/*.war ../../${BACKEND_WAR}"
@@ -61,25 +63,21 @@ pipeline {
 
         stage('Deploy Backend to Tomcat (/springapp1)') {
             steps {
-                script {
-                    sh """
-                        curl -u ${TOMCAT_USER}:${TOMCAT_PASS} \\
-                          --upload-file ${BACKEND_WAR} \\
-                          "${TOMCAT_URL}/deploy?path=/springapp1&update=true"
-                    """
-                }
+                sh """
+                    curl -u ${TOMCAT_USER}:${TOMCAT_PASS} \\
+                      --upload-file ${BACKEND_WAR} \\
+                      "${TOMCAT_URL}/deploy?path=/springapp1&update=true"
+                """
             }
         }
 
         stage('Deploy Frontend to Tomcat (/frontapp1)') {
             steps {
-                script {
-                    sh """
-                        curl -u ${TOMCAT_USER}:${TOMCAT_PASS} \\
-                          --upload-file ${FRONTEND_WAR} \\
-                          "${TOMCAT_URL}/deploy?path=/frontapp1&update=true"
-                    """
-                }
+                sh """
+                    curl -u ${TOMCAT_USER}:${TOMCAT_PASS} \\
+                      --upload-file ${FRONTEND_WAR} \\
+                      "${TOMCAT_URL}/deploy?path=/frontapp1&update=true"
+                """
             }
         }
     }
