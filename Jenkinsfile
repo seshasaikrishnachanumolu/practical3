@@ -21,7 +21,7 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                git url: 'https://github.com/seshasaikrishnachanumolu/practical3.git', branch: 'main'
+                git url: 'https://github.com/seshasaikrishnachanumolu/practical3.git', branch: 'master'
             }
         }
 
